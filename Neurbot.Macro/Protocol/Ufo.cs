@@ -1,4 +1,5 @@
-﻿using Bot.Protocol;
+﻿
+using Neurbot.Generic;
 
 namespace MacroBot.Protocol
 {

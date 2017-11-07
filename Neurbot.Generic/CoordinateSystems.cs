@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using static Swoc.MathEx;
 
-namespace Swoc
+namespace Neurbot.Generic
 {
     public struct CartesianCoord
     {
@@ -54,13 +50,13 @@ namespace Swoc
         public PolarCoord(double radius, double angle, AngleType type = AngleType.Radian)
         {
             Radius = radius;
-            AngleRadian = type == AngleType.Degree ? DegreeToRadian(angle) : angle;
+            AngleRadian = type == AngleType.Degree ? MathEx.DegreeToRadian(angle) : angle;
         }
 
         double Radius;
         double AngleRadian;
 
-        public double AngleDegree { get { return RadianToDegree(AngleRadian); } }
+        public double AngleDegree { get { return MathEx.RadianToDegree(AngleRadian); } }
 
         public CartesianCoord AsCartesianCoord()
         {
@@ -69,7 +65,7 @@ namespace Swoc
 
         public static CartesianCoord AsCartesianCoord(double radius, double angle, AngleType type = AngleType.Radian)
         {
-            var angleRadian = type == AngleType.Degree ? DegreeToRadian(angle) : angle;
+            var angleRadian = type == AngleType.Degree ? MathEx.DegreeToRadian(angle) : angle;
             return new CartesianCoord(radius * Math.Cos(angleRadian), -radius * Math.Sin(angleRadian));
         }
     }

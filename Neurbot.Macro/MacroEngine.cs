@@ -1,13 +1,13 @@
-﻿using System;
+﻿using MacroBot.Protocol;
+using Neurbot.Generic;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using MacroBot.Protocol;
 using static MacroBot.Helpers;
 
 namespace MacroBot
 {
-    public sealed class MacroEngine : Swoc.Engine<Protocol.GameState>
+    public sealed class MacroEngine : Engine<GameState>
     {
         private const string playerName = "playerName";
 

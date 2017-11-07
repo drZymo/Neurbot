@@ -1,4 +1,5 @@
 ﻿using MicroBot.Protocol;
+using Neurbot.Generic;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +9,7 @@ using static System.Math;
 
 namespace MicroBot
 {
-    public sealed class MicroEngine : Swoc.Engine<Protocol.GameState>
+    public sealed class MicroEngine : Engine<GameState>
     {
         public MicroEngine()
         {

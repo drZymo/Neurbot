@@ -48,18 +48,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\Generic\Engine.cs">
-      <Link>Engine.cs</Link>
-    </Compile>
-    <Compile Include="..\Generic\MathEx.cs">
-      <Link>MathEx.cs</Link>
-    </Compile>
-    <Compile Include="..\Generic\Position.cs">
-      <Link>Protocol\Position.cs</Link>
-    </Compile>
-    <Compile Include="..\Generic\Win32IO.cs">
-      <Link>Win32IO.cs</Link>
-    </Compile>
     <Compile Include="Helpers.cs" />
     <Compile Include="MicroEngine.cs" />
     <Compile Include="Program.cs" />
@@ -83,6 +71,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Neurbot.Generic\Neurbot.Generic.csproj">
+      <Project>{CB4FA916-C4E6-4546-9B55-B718CFA93D49}</Project>
+      <Name>Neurbot.Generic</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

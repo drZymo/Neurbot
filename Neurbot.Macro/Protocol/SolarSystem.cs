@@ -1,4 +1,4 @@
-﻿using Bot.Protocol;
+﻿using Neurbot.Generic;
 using System.Collections.Generic;
 
 namespace MacroBot.Protocol
