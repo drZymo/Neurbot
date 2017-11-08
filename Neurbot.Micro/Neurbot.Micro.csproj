@@ -65,7 +65,10 @@
     <Compile Include="Protocol\ShootAt.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="runCommand.txt">
+    <Content Include="Bot2\runCommand.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Bot1\runCommand.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -73,6 +76,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Neurbot.Brain\Neurbot.Brain.csproj">
+      <Project>{F23FEE62-954A-4E1F-A4F4-8BF9A1ECCBD6}</Project>
+      <Name>Neurbot.Brain</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Neurbot.Generic\Neurbot.Generic.csproj">
       <Project>{CB4FA916-C4E6-4546-9B55-B718CFA93D49}</Project>
       <Name>Neurbot.Generic</Name>

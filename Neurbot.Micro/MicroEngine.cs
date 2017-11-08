@@ -1,4 +1,5 @@
 ﻿using MicroBot.Protocol;
+using Neurbot.Brain;
 using Neurbot.Generic;
 using System;
 using System.Collections.Generic;
@@ -11,8 +12,16 @@ namespace MicroBot
 {
     public sealed class MicroEngine : Engine<GameState>
     {
-        public MicroEngine()
+        private static readonly Random random = new Random();
+
+        private readonly string historyFileName;
+        private readonly Brain brain;
+
+        public MicroEngine(string brainFileName, string historyFileName)
         {
+            this.historyFileName = historyFileName;
+
+            brain = Brain.LoadFromFile(brainFileName);
         }
 
         public override void Response(List<GameState> gameStates)
@@ -57,38 +66,64 @@ namespace MicroBot
         private double time = 0;
         private void DoResponse(List<GameState> gameStates)
         {
-            var gameState = gameStates.Last();
-            using (StreamWriter writer = new StreamWriter(@"log.txt", true))
+            try
             {
-                writer.WriteLine("{0}", string.Join(", ", gameState.ToNeuralNetInput()));
-            }
-            var playerName = gameState.PlayerName;
-            var mePlayer = GetPlayerByName(gameState.Players, playerName);
-            time += 0.1;
+                var gameState = gameStates.Last();
 
-            var ufos = mePlayer.Ufos;
-            var targetUfo = GetUfosWithHitPoints(GetOtherUfos(gameState, playerName)).FirstOrDefault();
+                var me = GetPlayerByName(gameState.Players, gameState.PlayerName);
 
-            if (targetUfo == default(Protocol.Ufo))
-                return;
+                //using (StreamWriter writer = new StreamWriter(@"log.txt", true))
+                //{
+                //    writer.WriteLine("{0}", string.Join(", ", gameState.ToNeuralNetInput()));
+                //}
 
-            foreach (var ufo in ufos)
-            {
+
+                //time += 0.1;
+                //
+                //var ufos = mePlayer.Ufos;
+                //var targetUfo = GetUfosWithHitPoints(GetOtherUfos(gameState, playerName)).FirstOrDefault();
+                //
+                //if (targetUfo == default(Protocol.Ufo))
+                //    return;
+                //
+                //foreach (var ufo in ufos)
+                //{
+                //    WriteMessage(new GameResponse
+                //    {
+                //        Commands = new List<UfoAction>
+                //        {
+                //            new UfoAction
+                //            {
+                //                Id = ufo.Id,
+                //                Move = new Move { Direction = Sin(time * 2) * 70, Speed = Sin(time * 0.2) * 4 },
+                //                ShootAt = new ShootAt { X = targetUfo.Position.X, Y = targetUfo.Position.Y },
+                //            }
+                //        },
+                //    });
+                //}
+
+                // TODO: Doesn't work correctly, probs are really small
+                int actionId = brain.GetRandomAction(gameState.ToNeuralNetInput());
+
+                actionId = random.Next(0, 15);
+
+                brain.SaveHistory(historyFileName);
+
+                var action = SelectUfoAction(actionId);
+                action.Id = me.Ufos.First().Id;
+
                 WriteMessage(new GameResponse
                 {
-                    Commands = new List<UfoAction>
-                    {
-                        new UfoAction
-                        {
-                            Id = ufo.Id,
-                            Move = new Move { Direction = Sin(time * 2) * 70, Speed = Sin(time * 0.2) * 4 },
-                            ShootAt = new ShootAt { X = targetUfo.Position.X, Y = targetUfo.Position.Y },
-                        }
-                    },
+                    Commands = new List<UfoAction> { action }
                 });
             }
+            catch (Exception ex)
+            {
+                using (var writer = new StreamWriter(@"D:\Swoc2017\log.txt", true))
+                {
+                    writer.WriteLine("Exception '{0}': {1}", ex.GetType(), ex.Message);
+                }
+            }
         }
-
-
     }
 }

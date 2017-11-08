@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="ActivationFunctions.cs" />
     <Compile Include="Brain.cs" />
+    <Compile Include="History.cs" />
     <Compile Include="MatrixEx.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

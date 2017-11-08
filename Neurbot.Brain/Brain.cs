@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Neurbot.Brain
 {
@@ -15,9 +13,13 @@ namespace Neurbot.Brain
 
         private readonly Matrix<double>[] weights;
 
+        private readonly History history;
+
         private Brain(IEnumerable<Matrix<double>> weights)
         {
             this.weights = weights.ToArray();
+
+            history = new History(this.weights.Length - 1);
         }
 
         public static Brain LoadFromFile(string fileName)
@@ -32,33 +34,50 @@ namespace Neurbot.Brain
             Console.WriteLine("loaded brain from '{0}' contains {1} layers", fileName, weights.Count());
             return new Brain(weights);
         }
-
+        
         public int GetBestAction(double[] gameState)
         {
             var aIn = Vector<double>.Build.Dense(gameState);
+            var probabilities = Forward(aIn, out var hiddenLayerOutputs);
 
-            var probabilities = Forward(aIn);
+            var action = FindIndexOfMaxValue(probabilities);
 
-            return FindIndexOfMaxValue(probabilities);
+            history.Add(aIn, hiddenLayerOutputs, probabilities, action);
+
+            return action;
         }
-
 
         public int GetRandomAction(double[] gameState)
         {
             var aIn = Vector<double>.Build.Dense(gameState);
+            var probabilities = Forward(aIn, out var hiddenLayerOutputs);
 
-            var probabilities = Forward(aIn);
+            int action = RandomIndexFromProbabilities(probabilities);
 
-            return RandomIndexFromProbabilities(probabilities);
+            history.Add(aIn, hiddenLayerOutputs, probabilities, action);
+
+            return action;
         }
 
-        private Vector<double> Forward(Vector<double> aIn)
+        public void ForgetHistory()
         {
+            history.ForgetEverything();
+        }
+
+        public void SaveHistory(string fileName)
+        {
+            history.Store(fileName);
+        }
+
+        private Vector<double> Forward(Vector<double> aIn, out Vector<double>[] hiddenLayerOutputs)
+        {
+            hiddenLayerOutputs = new Vector<double>[weights.Length - 1];
             var aPrev = aIn;
             for (int i = 0; i < weights.Length - 1; i++)
             {
                 var z = weights[i].Multiply(aPrev);
                 var a = z.ReLU();
+                hiddenLayerOutputs[i] = a;
                 aPrev = a;
             }
 
