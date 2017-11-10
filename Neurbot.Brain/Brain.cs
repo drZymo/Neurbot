@@ -68,6 +68,34 @@ namespace Neurbot.Brain
             history.Store(fileName);
         }
 
+        public Gradients ComputeGradient(History history, double reward)
+        {
+            var takenActions = history.GetTakenActionsAsOneHot();
+
+            var discountedRewards = DiscountReward(reward, takenActions.ColumnCount, 0.99);
+            var dz3 = takenActions - history.GetOutputs();
+            dz3 = dz3.RowwiseMultiply(discountedRewards);
+
+            var dw3 = dz3.Multiply(history.GetHiddenLayerOutputs(1).Transpose()); // TODO optimize by doing transpose in History
+            var da2 = weights[2].Transpose().Multiply(dz3);
+            var dz2 = da2.ReLUGrad();
+            var dw2 = dz2.Multiply(history.GetHiddenLayerOutputs(0).Transpose()); // TODO optimize by doing transpose in History
+            var da1 = weights[1].Transpose().Multiply(dz2);
+            var dz1 = da1.ReLUGrad();
+            var dw1 = dz1.Multiply(history.GetInputs().Transpose()); // TODO optimize by doing transpose in History
+            var da0 = weights[0].Transpose().Multiply(dz1);
+
+            return new Gradients(new[] { dw1, dw2, dw3 });
+        }
+
+        public void Descent(double LearningRate, Gradients gradients)
+        {
+            for (int i = 0; i < weights.Length; i++)
+            {
+                weights[i] = weights[i] + LearningRate * gradients[i];
+            }
+        }
+
         private Vector<double> Forward(Vector<double> aIn, out Vector<double>[] hiddenLayerOutputs)
         {
             hiddenLayerOutputs = new Vector<double>[weights.Length - 1];
@@ -111,6 +139,18 @@ namespace Neurbot.Brain
             }
 
             return probabilities.Count - 1;
+        }
+
+        private static Vector<double> DiscountReward(double reward, int length, double gamma)
+        {
+            var rewards = Vector<double>.Build.Dense(length);
+            var discountedReward = reward;
+            for (int i = length - 1; i >= 0; i--)
+            {
+                rewards[i] = discountedReward;
+                discountedReward = discountedReward * gamma;
+            }
+            return rewards;
         }
     }
 }

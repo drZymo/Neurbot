@@ -14,15 +14,31 @@ namespace Neurbot.Learner
     class Program
     {
         private const string EpisodeRootFolder = @"D:\Swoc2017\Episodes\";
+        private static readonly string BrainFileName = Path.Combine(EpisodeRootFolder, @"brain.dat");
 
         private static readonly Random random = new Random();
+        private const int BatchSize = 10;
+
+        private const double RMSPropDecayRate = 0.99;
+        private const double LearningRate = 1e-4;
 
 
         static void Main(string[] args)
         {
             MathNet.Numerics.Control.UseNativeMKL();
 
-            int episode = 0;
+            var rmspropCache = Gradients.Empty;
+            var gradients = Gradients.Empty;
+
+
+            if (!File.Exists(BrainFileName))
+            {
+                CreateNewWeights(BrainFileName);
+            }
+            var brain = Brain.Brain.LoadFromFile(BrainFileName);
+
+            for (int episode = 0; episode < 50; episode++)
+            //int episode = 0;
             {
                 // Create an empty folder structure for this episode
                 var episodeFolder = Path.Combine(EpisodeRootFolder, string.Format(@"episode{0}\", episode));
@@ -30,43 +46,11 @@ namespace Neurbot.Learner
                 var bot1Folder = Path.Combine(episodeFolder, @"Bot1\");
                 var bot2Folder = Path.Combine(episodeFolder, @"Bot2\");
 
-                if (Directory.Exists(episodeFolder))
-                {
-                    Directory.Delete(episodeFolder, true);
-                }
-                Directory.CreateDirectory(episodeFolder);
-                Directory.CreateDirectory(ticksFolder);
-                Directory.CreateDirectory(bot1Folder);
-                Directory.CreateDirectory(bot2Folder);
-
                 var bot1HistoryFileName = Path.Combine(bot1Folder, @"history.dat");
                 var bot2HistoryFileName = Path.Combine(bot2Folder, @"history.dat");
-                var brainFileName = Path.Combine(episodeFolder, @"brain.dat");
+                var thisEpisodeBrainFileName = Path.Combine(episodeFolder, @"brain.dat");
 
-                var prevEpisodeFolder = Path.Combine(EpisodeRootFolder, string.Format(@"episode{0}\", episode - 1));
-                var prevBrainFileName = Path.Combine(prevEpisodeFolder, @"brain.dat");
-
-
-                // create run commands
-                using (var writer = new StreamWriter(Path.Combine(bot1Folder, @"runCommand.txt")))
-                {
-                    writer.WriteLine(@"D:\Swoc2017\Neurbot\Neurbot.Micro\bin\Debug\Neurbot.Micro.exe -brain {0} -history {1}",
-                        brainFileName, bot1HistoryFileName);
-                }
-                using (var writer = new StreamWriter(Path.Combine(bot2Folder, @"runCommand.txt")))
-                {
-                    writer.WriteLine(@"D:\Swoc2017\Neurbot\Neurbot.Micro\bin\Debug\Neurbot.Micro.exe -brain {0} -history {1}",
-                        brainFileName, bot2HistoryFileName);
-                }
-
-                if (episode > 0)
-                {
-                    File.Copy(prevBrainFileName, brainFileName);
-                }
-                else
-                {
-                    CreateNewWeights(brainFileName);
-                }
+                PrepareEpisode(episode, episodeFolder, ticksFolder, bot1Folder, bot2Folder, bot1HistoryFileName, bot2HistoryFileName, thisEpisodeBrainFileName);
 
                 // Run the process
                 Console.WriteLine("Running episode {0}...", episode);
@@ -78,20 +62,51 @@ namespace Neurbot.Learner
                 var loser = output.players.SingleOrDefault(p => p.id != output.winner);
                 Console.WriteLine("  winner: {0}", winner.name);
                 Console.WriteLine("  loser: {0}", loser.name);
-            }
 
-            //var history = History.Load(@"D:\Swoc2017\history1.dat");
-            //var inputs = history.Inputs;
-            //var outputs = history.Outputs;
-            //Console.WriteLine("inputs = {0}", inputs);
-            //Console.WriteLine("outputs = {0}", outputs);
-            //
-            //var brain = Brain.Brain.LoadFromFile(BrainFile);
-            //
-            //var input0 = inputs.Column(0);
-            //var output0 = outputs.Column(0);
-            //Console.WriteLine("in: {0}", input0);
-            //Console.WriteLine("out: {0}", output0);
+                // Update gradients
+                {
+                    var history1 = History.Load(bot1HistoryFileName);
+                    var grad1 = brain.ComputeGradient(history1, 1.0);
+                    gradients = gradients.Add(grad1);
+                    var history2 = History.Load(bot2HistoryFileName);
+                    var grad2 = brain.ComputeGradient(history2, -1.0);
+                    gradients = gradients.Add(grad2);
+                }
+
+                // Descent once in a while
+                if (episode % BatchSize == BatchSize - 1)
+                {
+                    rmspropCache = rmspropCache.AddAndDecay(gradients, RMSPropDecayRate);
+                    brain.Descent(LearningRate, gradients.ApplyRMSProp(rmspropCache));
+                    gradients = Gradients.Empty;
+                }
+            }
+        }
+
+        private static void PrepareEpisode(int episode, string episodeFolder, string ticksFolder, string bot1Folder, string bot2Folder, string bot1HistoryFileName, string bot2HistoryFileName, string brainFileName)
+        {
+            if (Directory.Exists(episodeFolder))
+            {
+                Directory.Delete(episodeFolder, true);
+            }
+            Directory.CreateDirectory(episodeFolder);
+            Directory.CreateDirectory(ticksFolder);
+            Directory.CreateDirectory(bot1Folder);
+            Directory.CreateDirectory(bot2Folder);
+
+            File.Copy(BrainFileName, brainFileName);
+
+            // create run commands
+            using (var writer = new StreamWriter(Path.Combine(bot1Folder, @"runCommand.txt")))
+            {
+                writer.WriteLine(@"D:\Swoc2017\Neurbot\Neurbot.Micro\bin\Debug\Neurbot.Micro.exe -brain {0} -history {1}",
+                    brainFileName, bot1HistoryFileName);
+            }
+            using (var writer = new StreamWriter(Path.Combine(bot2Folder, @"runCommand.txt")))
+            {
+                writer.WriteLine(@"D:\Swoc2017\Neurbot\Neurbot.Micro\bin\Debug\Neurbot.Micro.exe -brain {0} -history {1}",
+                    brainFileName, bot2HistoryFileName);
+            }
         }
 
         private static GameResult RunEpisode(string ticksFolder, string bot1Folder, string bot2Folder)
@@ -106,7 +121,7 @@ namespace Neurbot.Learner
                     players = new[]
                     {
                         new {
-                            id = 1,
+                            id = 0,
                             name = "bot1",
                             bot = bot1Folder,
                             ufos = new[] { 11 },
@@ -114,7 +129,7 @@ namespace Neurbot.Learner
                             hue = 0.142
                         },
                         new {
-                            id = 2,
+                            id = 1,
                             name = "bot2",
                             bot = bot2Folder,
                             ufos = new[] { 21 },

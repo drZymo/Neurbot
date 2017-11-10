@@ -1,6 +1,7 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Neurbot.Brain
@@ -30,9 +31,6 @@ namespace Neurbot.Brain
             this.outputs = outputs;
             this.takenActions = takenActions;
         }
-
-        public Matrix<double> Inputs { get => Matrix<double>.Build.DenseOfColumnVectors(inputs); }
-        public Matrix<double> Outputs { get => Matrix<double>.Build.DenseOfColumnVectors(outputs); }
 
         public static History Load(string fileName)
         {
@@ -88,6 +86,32 @@ namespace Neurbot.Brain
                 formatter.Serialize(stream, outputs);
                 formatter.Serialize(stream, takenActions);
             }
+        }
+
+        public Matrix<double> GetInputs()
+        {
+            return Matrix<double>.Build.DenseOfColumnVectors(inputs);
+        }
+
+        public Matrix<double> GetHiddenLayerOutputs(int layer)
+        {
+            return Matrix<double>.Build.DenseOfColumnVectors(hiddenLayerOutputs[layer]);
+        }
+
+        public Matrix<double> GetOutputs()
+        {
+            return Matrix<double>.Build.DenseOfColumnVectors(outputs);
+        }
+
+        public Matrix<double> GetTakenActionsAsOneHot()
+        {
+            var result = Matrix<double>.Build.Dense(outputs.First().Count, outputs.Count, 0.0);
+            for (int c = 0; c < outputs.Count; c++)
+            {
+                var takenAction = takenActions[c];
+                result[takenAction, c] = 1.0;
+            }
+            return result;
         }
 
         private static List<Vector<double>>[] CreateEmptyHiddenLayerOutputs(int nrOfHiddenLayers)
