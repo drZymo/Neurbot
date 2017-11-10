@@ -34,25 +34,26 @@ namespace Neurbot.Brain
             Console.WriteLine("loaded brain from '{0}' contains {1} layers", fileName, weights.Count());
             return new Brain(weights);
         }
-        
+
         public int GetBestAction(double[] gameState)
         {
             var aIn = Vector<double>.Build.Dense(gameState);
-            var probabilities = Forward(aIn, out var hiddenLayerOutputs);
-
-            var action = FindIndexOfMaxValue(probabilities);
-
-            history.Add(aIn, hiddenLayerOutputs, probabilities, action);
-
-            return action;
+            return GetAction(aIn, false, out var probabilities);
         }
 
         public int GetRandomAction(double[] gameState)
         {
             var aIn = Vector<double>.Build.Dense(gameState);
-            var probabilities = Forward(aIn, out var hiddenLayerOutputs);
+            return GetAction(aIn, true, out var probabilities);
+        }
 
-            int action = RandomIndexFromProbabilities(probabilities);
+        public int GetAction(Vector<double> aIn, bool randomAction, out Vector<double> probabilities)
+        {
+            probabilities = Forward(aIn, out var hiddenLayerOutputs);
+
+            var action = randomAction
+                ? RandomIndexFromProbabilities(probabilities)
+                : FindIndexOfMaxValue(probabilities);
 
             history.Add(aIn, hiddenLayerOutputs, probabilities, action);
 
@@ -76,7 +77,7 @@ namespace Neurbot.Brain
             for (int i = 0; i < weights.Length - 1; i++)
             {
                 var z = weights[i].Multiply(aPrev);
-                var a = z.ReLU();
+                var a = z.Sigmoid();
                 hiddenLayerOutputs[i] = a;
                 aPrev = a;
             }

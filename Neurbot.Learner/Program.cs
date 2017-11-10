@@ -9,14 +9,14 @@ namespace Neurbot.Learner
 {
     class Program
     {
-        private const string WeightsFile = @"D:\Swoc2017\brain.dat";
+        private const string BrainFile = @"D:\Swoc2017\brain.dat";
         private static readonly Random random = new Random();
 
         static void Main(string[] args)
         {
             MathNet.Numerics.Control.UseNativeMKL();
 
-            //CreateNewWeights();
+            CreateNewWeights();
 
             var history = History.Load(@"D:\Swoc2017\history1.dat");
             var inputs = history.Inputs;
@@ -24,6 +24,12 @@ namespace Neurbot.Learner
             Console.WriteLine("inputs = {0}", inputs);
             Console.WriteLine("outputs = {0}", outputs);
 
+            var brain = Brain.Brain.LoadFromFile(BrainFile);
+
+            var input0 = inputs.Column(0);
+            var output0 = outputs.Column(0);
+            Console.WriteLine("in: {0}", input0);
+            Console.WriteLine("out: {0}", output0);
         }
 
         private static void CreateNewWeights()
@@ -34,19 +40,18 @@ namespace Neurbot.Learner
             var weights = new Matrix<double>[nrOfLayers - 1];
             for (int i = 1; i < nrOfLayers; i++)
             {
-                // Initialize parameters with "He initialization" (He et al., 2015)
-                // Recommended for ReLU activation functions.
-                var w = Matrix<double>.Build.Dense(nrOfUnitsInLayers[i], nrOfUnitsInLayers[i - 1], (r, c) => random.NextNormal() * Math.Sqrt(2.0 / nrOfUnitsInLayers[i - 1]));
+                // Initialize parameters with "Xavier initialization"
+                var w = Matrix<double>.Build.Dense(nrOfUnitsInLayers[i], nrOfUnitsInLayers[i - 1], (r, c) => random.NextNormal() * Math.Sqrt(1.0 / nrOfUnitsInLayers[i - 1]));
                 weights[i - 1] = w;
             }
 
-            using (var stream = File.Create(WeightsFile))
+            using (var stream = File.Create(BrainFile))
             {
                 var formatter = new BinaryFormatter();
                 formatter.Serialize(stream, weights);
             }
 
-            var brain = Brain.Brain.LoadFromFile(WeightsFile);
+            var brain = Brain.Brain.LoadFromFile(BrainFile);
         }
     }
 }
