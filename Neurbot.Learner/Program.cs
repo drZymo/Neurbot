@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading;
 
@@ -22,7 +23,6 @@ namespace Neurbot.Learner
             MathNet.Numerics.Control.UseNativeMKL();
 
             int episode = 0;
-            using (var process = StartProcess())
             {
                 // Create an empty folder structure for this episode
                 var episodeFolder = Path.Combine(EpisodeRootFolder, string.Format(@"episode{0}\", episode));
@@ -68,6 +68,37 @@ namespace Neurbot.Learner
                     CreateNewWeights(brainFileName);
                 }
 
+                // Run the process
+                Console.WriteLine("Running episode {0}...", episode);
+                var sw = Stopwatch.StartNew();
+                var output = RunEpisode(ticksFolder, bot1Folder, bot2Folder);
+                sw.Stop();
+                Console.WriteLine("Running episode {0}...done in {1:f1} s", episode, sw.Elapsed.TotalSeconds);
+                var winner = output.players.SingleOrDefault(p => p.id == output.winner);
+                var loser = output.players.SingleOrDefault(p => p.id != output.winner);
+                Console.WriteLine("  winner: {0}", winner.name);
+                Console.WriteLine("  loser: {0}", loser.name);
+            }
+
+            //var history = History.Load(@"D:\Swoc2017\history1.dat");
+            //var inputs = history.Inputs;
+            //var outputs = history.Outputs;
+            //Console.WriteLine("inputs = {0}", inputs);
+            //Console.WriteLine("outputs = {0}", outputs);
+            //
+            //var brain = Brain.Brain.LoadFromFile(BrainFile);
+            //
+            //var input0 = inputs.Column(0);
+            //var output0 = outputs.Column(0);
+            //Console.WriteLine("in: {0}", input0);
+            //Console.WriteLine("out: {0}", output0);
+        }
+
+        private static GameResult RunEpisode(string ticksFolder, string bot1Folder, string bot2Folder)
+        {
+            GameResult output;
+            using (var process = StartProcess())
+            {
                 var input = new
                 {
                     gameId = 1,
@@ -93,29 +124,11 @@ namespace Neurbot.Learner
                     }
                 };
                 var inputStr = JsonConvert.SerializeObject(input);
-
-                // Run the process
-                Console.WriteLine("Running episode {0}...", episode);
-                var sw = Stopwatch.StartNew();
                 process.StandardInput.WriteLine(inputStr);
-                var output = process.StandardOutput.ReadLine();
-                //Console.WriteLine("output = {0}", output);
-                sw.Stop();
-                Console.WriteLine("Running episode {0}...done in {1:f1} s", episode, sw.Elapsed.TotalSeconds);
+                var outputStr = process.StandardOutput.ReadLine();
+                output = JsonConvert.DeserializeObject<GameResult>(outputStr);
             }
-
-            //var history = History.Load(@"D:\Swoc2017\history1.dat");
-            //var inputs = history.Inputs;
-            //var outputs = history.Outputs;
-            //Console.WriteLine("inputs = {0}", inputs);
-            //Console.WriteLine("outputs = {0}", outputs);
-            //
-            //var brain = Brain.Brain.LoadFromFile(BrainFile);
-            //
-            //var input0 = inputs.Column(0);
-            //var output0 = outputs.Column(0);
-            //Console.WriteLine("in: {0}", input0);
-            //Console.WriteLine("out: {0}", output0);
+            return output;
         }
 
         private static void CreateNewWeights(string brainFileName)
