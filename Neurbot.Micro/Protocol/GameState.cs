@@ -1,9 +1,8 @@
-﻿using System;
+﻿using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
-namespace MicroBot.Protocol
+namespace Neurbot.Micro.Protocol
 {
     public sealed class GameState
     {
@@ -17,16 +16,22 @@ namespace MicroBot.Protocol
 
         public string PlayerName { get; set; }
 
-        public double[] ToNeuralNetInput()
+        public Vector<double> ToNeuralNetInput()
         {
             const int MaxNrOfFriendlyUfos = 10;
             const int MaxNrOfEnemyUfos = 20;
             const int MaxNrOfProjectiles = 50;
-            const int FriendlyUfosOffset = 0;
-            const int EnemyUfosOffset = FriendlyUfosOffset + MaxNrOfFriendlyUfos * 3;
-            const int ProjectilesOffset = EnemyUfosOffset + MaxNrOfEnemyUfos * 3;
 
-            var input = new double[MaxNrOfFriendlyUfos * 3 + MaxNrOfEnemyUfos * 3 + MaxNrOfProjectiles * 3];
+            const int ArenaOffset = 0;
+            const int ArenaSize = 2;
+            const int FriendlyUfosOffset = ArenaOffset + ArenaSize;
+            const int FriendlyUfosSize = MaxNrOfFriendlyUfos * 3;
+            const int EnemyUfosOffset = FriendlyUfosOffset + FriendlyUfosSize;
+            const int EnemyUfosSize = MaxNrOfEnemyUfos * 3;
+            const int ProjectilesOffset = EnemyUfosOffset + EnemyUfosSize;
+            const int ProjectilesSize = MaxNrOfProjectiles * 3;
+
+            var input = new double[ArenaSize + FriendlyUfosSize + EnemyUfosSize + ProjectilesSize];
 
             var friendlyUfos = Players.Where(player => player.Name == PlayerName).SelectMany(player => player.Ufos).ToArray();
             var enemyUfos = Players.Where(player => player.Name != PlayerName).SelectMany(player => player.Ufos).ToArray();
@@ -85,7 +90,7 @@ namespace MicroBot.Protocol
                 input[ProjectilesOffset + i * 3 + 0] = direction;
             }
 
-            return input;
+            return Vector<double>.Build.Dense(input);
         }
     }
 }

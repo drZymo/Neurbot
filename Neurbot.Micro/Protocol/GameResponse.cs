@@ -1,10 +1,6 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 
-namespace MicroBot.Protocol
+namespace Neurbot.Micro.Protocol
 {
     public sealed class GameResponse
     {

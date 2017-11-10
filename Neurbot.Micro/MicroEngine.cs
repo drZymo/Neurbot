@@ -1,27 +1,24 @@
-﻿using MicroBot.Protocol;
-using Neurbot.Brain;
+﻿using Neurbot.Brain;
 using Neurbot.Generic;
+using Neurbot.Micro.Protocol;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using static MicroBot.Helpers;
-using static System.Math;
 
-namespace MicroBot
+namespace Neurbot.Micro
 {
     public sealed class MicroEngine : Engine<GameState>
     {
         private static readonly Random random = new Random();
 
         private readonly string historyFileName;
-        private readonly Brain brain;
+        private readonly Brain.Brain brain;
 
         public MicroEngine(string brainFileName, string historyFileName)
         {
             this.historyFileName = historyFileName;
 
-            brain = Brain.LoadFromFile(brainFileName);
+            brain = Brain.Brain.LoadFromFile(brainFileName);
         }
 
         public override void Response(List<GameState> gameStates)
@@ -62,21 +59,13 @@ namespace MicroBot
             return new UfoAction();
         }
 
-
-        private double time = 0;
         private void DoResponse(List<GameState> gameStates)
         {
             try
             {
                 var gameState = gameStates.Last();
 
-                var me = GetPlayerByName(gameState.Players, gameState.PlayerName);
-
-                //using (StreamWriter writer = new StreamWriter(@"log.txt", true))
-                //{
-                //    writer.WriteLine("{0}", string.Join(", ", gameState.ToNeuralNetInput()));
-                //}
-
+                var me = Helpers.GetPlayerByName(gameState.Players, gameState.PlayerName);
 
                 //time += 0.1;
                 //
@@ -119,10 +108,7 @@ namespace MicroBot
             }
             catch (Exception ex)
             {
-                using (var writer = new StreamWriter(@"D:\Swoc2017\log.txt", true))
-                {
-                    writer.WriteLine("Exception '{0}': {1}", ex.GetType(), ex.Message);
-                }
+                Logger.Log("Exception '{0}': {1}", ex.GetType(), ex.Message);
             }
         }
     }

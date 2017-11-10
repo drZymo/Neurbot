@@ -35,27 +35,25 @@ namespace Neurbot.Brain
             return new Brain(weights);
         }
 
-        public int GetBestAction(double[] gameState)
+        public int GetBestAction(Vector<double> input)
         {
-            var aIn = Vector<double>.Build.Dense(gameState);
-            return GetAction(aIn, false, out var probabilities);
+            return GetAction(input, false, out var probabilities);
         }
 
-        public int GetRandomAction(double[] gameState)
+        public int GetRandomAction(Vector<double> input)
         {
-            var aIn = Vector<double>.Build.Dense(gameState);
-            return GetAction(aIn, true, out var probabilities);
+            return GetAction(input, true, out var probabilities);
         }
 
-        public int GetAction(Vector<double> aIn, bool randomAction, out Vector<double> probabilities)
+        public int GetAction(Vector<double> input, bool randomAction, out Vector<double> probabilities)
         {
-            probabilities = Forward(aIn, out var hiddenLayerOutputs);
+            probabilities = Forward(input, out var hiddenLayerOutputs);
 
             var action = randomAction
                 ? RandomIndexFromProbabilities(probabilities)
                 : FindIndexOfMaxValue(probabilities);
 
-            history.Add(aIn, hiddenLayerOutputs, probabilities, action);
+            history.Add(input, hiddenLayerOutputs, probabilities, action);
 
             return action;
         }

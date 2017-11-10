@@ -1,12 +1,7 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 using System.Reflection;
-using System.Text;
 
-namespace MicroBot
+namespace Neurbot.Micro
 {
     class Program
     {
@@ -29,11 +24,6 @@ namespace MicroBot
             if (!string.IsNullOrEmpty(historyFileName))
             {
                 historyFileName = GetAbsolutePath(historyFileName);
-            }
-
-            using (var writer = new StreamWriter(@"D:\Swoc2017\log.txt", true))
-            {
-                writer.WriteLine("brain = {0}, history = {1}", brainFileName, historyFileName);
             }
 
             var engine = new MicroEngine(brainFileName, historyFileName);

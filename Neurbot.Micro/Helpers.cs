@@ -1,10 +1,8 @@
-﻿using MicroBot.Protocol;
-using System;
+﻿using Neurbot.Micro.Protocol;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
-namespace MicroBot
+namespace Neurbot.Micro
 {
     public static class Helpers
     {

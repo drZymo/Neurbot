@@ -1,6 +1,6 @@
 ﻿using Neurbot.Generic;
 
-namespace MicroBot.Protocol
+namespace Neurbot.Micro.Protocol
 {
     public sealed class Ufo
     { 
