@@ -3,11 +3,13 @@ using Neurbot.Brain;
 using Neurbot.Generic;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Neurbot.Learner
 {
@@ -17,10 +19,10 @@ namespace Neurbot.Learner
         private static readonly string BrainFileName = Path.Combine(EpisodeRootFolder, @"brain.dat");
 
         private static readonly Random random = new Random();
-        private const int BatchSize = 10;
+        private const int BatchSize = 20;
 
         private const double RMSPropDecayRate = 0.99;
-        private const double LearningRate = 1e-4;
+        private const double LearningRate = 1e-3;
 
 
         static void Main(string[] args)
@@ -28,62 +30,74 @@ namespace Neurbot.Learner
             MathNet.Numerics.Control.UseNativeMKL();
 
             var rmspropCache = Gradients.Empty;
-            var gradients = Gradients.Empty;
+            var gradientsSum = Gradients.Empty;
 
+            var allGradients = new ConcurrentQueue<Gradients>();
 
+            // Start with a fresh brain
             if (!File.Exists(BrainFileName))
             {
                 CreateNewWeights(BrainFileName);
             }
             var brain = Brain.Brain.LoadFromFile(BrainFileName);
 
-            for (int episode = 0; episode < 50; episode++)
-            //int episode = 0;
+            for (int episode = 0; episode < 500; episode += BatchSize)
             {
-                // Create an empty folder structure for this episode
-                var episodeFolder = Path.Combine(EpisodeRootFolder, string.Format(@"episode{0}\", episode));
-                var ticksFolder = Path.Combine(episodeFolder, @"Ticks\");
-                var bot1Folder = Path.Combine(episodeFolder, @"Bot1\");
-                var bot2Folder = Path.Combine(episodeFolder, @"Bot2\");
+                // Run 10 episodes at once
+                var tasks = Enumerable.Range(episode, BatchSize).Select(currentEpisode => Task.Run(() => RunEpisode(brain, currentEpisode, allGradients))).ToArray();
+                Task.WaitAll(tasks);
 
-                var bot1HistoryFileName = Path.Combine(bot1Folder, @"history.dat");
-                var bot2HistoryFileName = Path.Combine(bot2Folder, @"history.dat");
-                var thisEpisodeBrainFileName = Path.Combine(episodeFolder, @"brain.dat");
-
-                PrepareEpisode(episode, episodeFolder, ticksFolder, bot1Folder, bot2Folder, bot1HistoryFileName, bot2HistoryFileName, thisEpisodeBrainFileName);
-
-                // Run the process
-                Console.WriteLine("Running episode {0}...", episode);
-                var sw = Stopwatch.StartNew();
-                var output = RunEpisode(ticksFolder, bot1Folder, bot2Folder);
-                sw.Stop();
-                Console.WriteLine("Running episode {0}...done in {1:f1} s", episode, sw.Elapsed.TotalSeconds);
-                var winner = output.players.SingleOrDefault(p => p.id == output.winner);
-                var loser = output.players.SingleOrDefault(p => p.id != output.winner);
-                Console.WriteLine("  winner: {0}", winner.name);
-                Console.WriteLine("  loser: {0}", loser.name);
-
-                // Update gradients
+                // Update the current sum of gradients
+                while (allGradients.TryDequeue(out var gradients))
                 {
-                    var history1 = History.Load(bot1HistoryFileName);
-                    var grad1 = brain.ComputeGradient(history1, 1.0);
-                    gradients = gradients.Add(grad1);
-                    var history2 = History.Load(bot2HistoryFileName);
-                    var grad2 = brain.ComputeGradient(history2, -1.0);
-                    gradients = gradients.Add(grad2);
+                    gradientsSum = gradientsSum.Add(gradients);
                 }
 
-                // Descent once in a while
-                if (episode % BatchSize == BatchSize - 1)
-                {
-                    rmspropCache = rmspropCache.AddAndDecay(gradients, RMSPropDecayRate);
-                    brain.Descent(LearningRate, gradients.ApplyRMSProp(rmspropCache));
-                    gradients = Gradients.Empty;
-                }
+                // Descent
+                Console.WriteLine("Descending");
+                rmspropCache = rmspropCache.AddAndDecay(gradientsSum, RMSPropDecayRate);
+                brain.Descent(LearningRate, gradientsSum.ApplyRMSProp(rmspropCache));
+                gradientsSum = Gradients.Empty;
+
+                // Store updated brain to file
+                brain.SaveToFile(BrainFileName);
             }
         }
 
-        private static void PrepareEpisode(int episode, string episodeFolder, string ticksFolder, string bot1Folder, string bot2Folder, string bot1HistoryFileName, string bot2HistoryFileName, string brainFileName)
+        private static void RunEpisode(Brain.Brain brain, int episode, ConcurrentQueue<Gradients> allGradients)
+        {
+            var sw = Stopwatch.StartNew();
+
+            // Create an empty folder structure for this episode
+            var episodeFolder = Path.Combine(EpisodeRootFolder, string.Format(@"episode{0}\", episode));
+            var ticksFolder = Path.Combine(episodeFolder, @"Ticks\");
+
+            var botFolders = new[] { Path.Combine(episodeFolder, @"Bot1\"), Path.Combine(episodeFolder, @"Bot2\") };
+            var botHistoryFileNames = botFolders.Select(f => Path.Combine(f, @"history.dat")).ToArray();
+
+            PrepareEpisode(episodeFolder, ticksFolder, botFolders, botHistoryFileNames);
+
+            var output = RunGame(ticksFolder, botFolders[0], botFolders[1]);
+
+            var winner = output.players.SingleOrDefault(p => p.id == output.winner);
+            var loser = output.players.SingleOrDefault(p => p.id != output.winner);
+
+            // Update gradients
+            // winner gets +1 reward
+            var historyWinner = History.Load(botHistoryFileNames[winner.id]);
+            var gradientsWinner = brain.ComputeGradient(historyWinner, 1.0);
+            allGradients.Enqueue(gradientsWinner);
+
+            // loser gets -1 reward
+            var historyLoser = History.Load(botHistoryFileNames[loser.id]);
+            var gradientsLoser = brain.ComputeGradient(historyLoser, -1.0);
+            allGradients.Enqueue(gradientsLoser);
+
+            sw.Stop();
+            Console.WriteLine("episode {0} won by {1} in {2:f1} s", episode, winner.name, sw.Elapsed.TotalSeconds);
+        }
+
+        private static void PrepareEpisode(string episodeFolder, string ticksFolder, string[] botFolders, string[] botHistoryFileNames)
         {
             if (Directory.Exists(episodeFolder))
             {
@@ -91,25 +105,27 @@ namespace Neurbot.Learner
             }
             Directory.CreateDirectory(episodeFolder);
             Directory.CreateDirectory(ticksFolder);
-            Directory.CreateDirectory(bot1Folder);
-            Directory.CreateDirectory(bot2Folder);
 
+            var brainFileName = Path.Combine(episodeFolder, @"brain.dat");
             File.Copy(BrainFileName, brainFileName);
 
-            // create run commands
-            using (var writer = new StreamWriter(Path.Combine(bot1Folder, @"runCommand.txt")))
+            // create bot folder
+            for (int b = 0; b < botFolders.Length; b++)
             {
-                writer.WriteLine(@"D:\Swoc2017\Neurbot\Neurbot.Micro\bin\Debug\Neurbot.Micro.exe -brain {0} -history {1}",
-                    brainFileName, bot1HistoryFileName);
-            }
-            using (var writer = new StreamWriter(Path.Combine(bot2Folder, @"runCommand.txt")))
-            {
-                writer.WriteLine(@"D:\Swoc2017\Neurbot\Neurbot.Micro\bin\Debug\Neurbot.Micro.exe -brain {0} -history {1}",
-                    brainFileName, bot2HistoryFileName);
+                var botFolder = botFolders[b];
+                var botHistoryFileName = botHistoryFileNames[b];
+
+                Directory.CreateDirectory(botFolder);
+
+                using (var writer = new StreamWriter(Path.Combine(botFolder, @"runCommand.txt")))
+                {
+                    writer.WriteLine(@"D:\Swoc2017\Neurbot\Neurbot.Micro\bin\Debug\Neurbot.Micro.exe -brain {0} -history {1}",
+                        brainFileName, botHistoryFileName);
+                }
             }
         }
 
-        private static GameResult RunEpisode(string ticksFolder, string bot1Folder, string bot2Folder)
+        private static GameResult RunGame(string ticksFolder, string bot1Folder, string bot2Folder)
         {
             GameResult output;
             using (var process = StartProcess())
@@ -148,7 +164,7 @@ namespace Neurbot.Learner
 
         private static void CreateNewWeights(string brainFileName)
         {
-            int[] nrOfUnitsInLayers = new[] { 242, 480, 120, 16 };
+            int[] nrOfUnitsInLayers = new[] { 240, 480, 120, 16 };
             var nrOfLayers = nrOfUnitsInLayers.Length;
 
             var weights = new Matrix<double>[nrOfLayers - 1];

@@ -13,16 +13,18 @@ namespace Neurbot.Brain
 
         private readonly Matrix<double>[] weights;
 
-        private readonly History history;
+        private readonly HistoryWriter historyWriter;
 
-        private Brain(IEnumerable<Matrix<double>> weights)
+        private Brain(IEnumerable<Matrix<double>> weights, string historyFile)
         {
             this.weights = weights.ToArray();
 
-            history = new History(this.weights.Length - 1);
+            historyWriter = !string.IsNullOrEmpty(historyFile)
+                ? new HistoryWriter(historyFile)
+                : null;
         }
 
-        public static Brain LoadFromFile(string fileName)
+        public static Brain LoadFromFile(string fileName, string historyFile = null)
         {
             IEnumerable<Matrix<double>> weights;
             using (var stream = File.OpenRead(fileName))
@@ -32,7 +34,16 @@ namespace Neurbot.Brain
             }
 
             Console.WriteLine("loaded brain from '{0}' contains {1} layers", fileName, weights.Count());
-            return new Brain(weights);
+            return new Brain(weights, historyFile);
+        }
+
+        public void SaveToFile(string fileName)
+        {
+            using (var stream = File.Create(fileName))
+            {
+                var formatter = new BinaryFormatter();
+                formatter.Serialize(stream, weights);
+            }
         }
 
         public int GetBestAction(Vector<double> input)
@@ -53,36 +64,26 @@ namespace Neurbot.Brain
                 ? RandomIndexFromProbabilities(probabilities)
                 : FindIndexOfMaxValue(probabilities);
 
-            history.Add(input, hiddenLayerOutputs, probabilities, action);
+            historyWriter?.Write(input, hiddenLayerOutputs, probabilities, action);
 
             return action;
         }
 
-        public void ForgetHistory()
-        {
-            history.ForgetEverything();
-        }
-
-        public void SaveHistory(string fileName)
-        {
-            history.Store(fileName);
-        }
-
         public Gradients ComputeGradient(History history, double reward)
         {
-            var takenActions = history.GetTakenActionsAsOneHot();
+            var takenActions = history.TakenActions;
 
             var discountedRewards = DiscountReward(reward, takenActions.ColumnCount, 0.99);
-            var dz3 = takenActions - history.GetOutputs();
+            var dz3 = takenActions - history.Outputs;
             dz3 = dz3.RowwiseMultiply(discountedRewards);
 
-            var dw3 = dz3.Multiply(history.GetHiddenLayerOutputs(1).Transpose()); // TODO optimize by doing transpose in History
+            var dw3 = dz3.Multiply(history.GetHiddenLayersOutputs(1).Transpose()); // TODO optimize by doing transpose in History
             var da2 = weights[2].Transpose().Multiply(dz3);
             var dz2 = da2.ReLUGrad();
-            var dw2 = dz2.Multiply(history.GetHiddenLayerOutputs(0).Transpose()); // TODO optimize by doing transpose in History
+            var dw2 = dz2.Multiply(history.GetHiddenLayersOutputs(0).Transpose()); // TODO optimize by doing transpose in History
             var da1 = weights[1].Transpose().Multiply(dz2);
             var dz1 = da1.ReLUGrad();
-            var dw1 = dz1.Multiply(history.GetInputs().Transpose()); // TODO optimize by doing transpose in History
+            var dw1 = dz1.Multiply(history.Inputs.Transpose()); // TODO optimize by doing transpose in History
             var da0 = weights[0].Transpose().Multiply(dz1);
 
             return new Gradients(new[] { dw1, dw2, dw3 });

@@ -1,1 +1,0 @@
-D:\Swoc2017\Neurbot\Neurbot.Micro\bin\Debug\Neurbot.Micro.exe -brain D:\Swoc2017\brain.dat -history D:\Swoc2017\history1.dat

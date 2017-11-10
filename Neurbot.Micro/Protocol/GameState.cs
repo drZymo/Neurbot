@@ -22,19 +22,24 @@ namespace Neurbot.Micro.Protocol
             const int MaxNrOfEnemyUfos = 20;
             const int MaxNrOfProjectiles = 50;
 
-            const int ArenaOffset = 0;
-            const int ArenaSize = 2;
-            const int FriendlyUfosOffset = ArenaOffset + ArenaSize;
+            const int FriendlyUfosOffset = 0;
             const int FriendlyUfosSize = MaxNrOfFriendlyUfos * 3;
             const int EnemyUfosOffset = FriendlyUfosOffset + FriendlyUfosSize;
             const int EnemyUfosSize = MaxNrOfEnemyUfos * 3;
             const int ProjectilesOffset = EnemyUfosOffset + EnemyUfosSize;
             const int ProjectilesSize = MaxNrOfProjectiles * 3;
 
-            var input = new double[ArenaSize + FriendlyUfosSize + EnemyUfosSize + ProjectilesSize];
+            var input = new double[FriendlyUfosSize + EnemyUfosSize + ProjectilesSize];
 
             var friendlyUfos = Players.Where(player => player.Name == PlayerName).SelectMany(player => player.Ufos).ToArray();
             var enemyUfos = Players.Where(player => player.Name != PlayerName).SelectMany(player => player.Ufos).ToArray();
+
+            var arenaWidth = Arena.Width;
+            var arenaHeight = Arena.Height;
+
+            // Data is normalize to be all (more or less) within the range [0...1].
+            // This will prevent exploding values in the softmax layer.
+            // This also makes the positions always between 0 and 1, even when the arena is shrinking.
 
             // first block is ufos of this player
             for (int i = 0; i < MaxNrOfFriendlyUfos; i++)
@@ -45,9 +50,9 @@ namespace Neurbot.Micro.Protocol
                 if (i < friendlyUfos.Length)
                 {
                     var ufo = friendlyUfos[i];
-                    hitPoints = ufo.Hitpoints;
-                    x = ufo.Position.X;
-                    y = ufo.Position.Y;
+                    hitPoints = ufo.Hitpoints / 100.0;
+                    x = ufo.Position.X / arenaWidth;
+                    y = ufo.Position.Y / arenaHeight;
                 }
                 input[FriendlyUfosOffset + i * 3 + 0] = hitPoints;
                 input[FriendlyUfosOffset + i * 3 + 1] = x;
@@ -63,9 +68,9 @@ namespace Neurbot.Micro.Protocol
                 if (i < enemyUfos.Length)
                 {
                     var ufo = enemyUfos[i];
-                    hitPoints = ufo.Hitpoints;
-                    x = ufo.Position.X;
-                    y = ufo.Position.Y;
+                    hitPoints = ufo.Hitpoints / 100.0;
+                    x = ufo.Position.X / arenaWidth;
+                    y = ufo.Position.Y / arenaHeight;
                 }
                 input[EnemyUfosOffset + i * 3 + 0] = hitPoints;
                 input[EnemyUfosOffset + i * 3 + 1] = x;
@@ -81,9 +86,9 @@ namespace Neurbot.Micro.Protocol
                 if (i < Projectiles.Count)
                 {
                     var projectile = Projectiles[i];
-                    x = projectile.Position.X;
-                    y = projectile.Position.Y;
-                    direction = projectile.Direction;
+                    x = projectile.Position.X / arenaWidth;
+                    y = projectile.Position.Y / arenaHeight;
+                    direction = projectile.Direction / 360.0;
                 }
                 input[ProjectilesOffset + i * 3 + 1] = x;
                 input[ProjectilesOffset + i * 3 + 2] = y;

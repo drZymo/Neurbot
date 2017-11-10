@@ -47,6 +47,7 @@
     <Compile Include="Brain.cs" />
     <Compile Include="Gradients.cs" />
     <Compile Include="History.cs" />
+    <Compile Include="HistoryWriter.cs" />
     <Compile Include="MatrixEx.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

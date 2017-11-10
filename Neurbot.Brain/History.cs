@@ -1,5 +1,7 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
@@ -8,120 +10,106 @@ namespace Neurbot.Brain
 {
     public class History
     {
-        private readonly List<Vector<double>> inputs = new List<Vector<double>>();
-        private readonly List<Vector<double>>[] hiddenLayerOutputs;
-        private readonly List<Vector<double>> outputs = new List<Vector<double>>();
-        private readonly List<int> takenActions = new List<int>();
-
-        public History(int nrOfHiddenLayers) :
-            this(new List<Vector<double>>(),
-                CreateEmptyHiddenLayerOutputs(nrOfHiddenLayers),
-                new List<Vector<double>>(),
-                new List<int>())
-        { }
+        private readonly Matrix<double> inputs;
+        private readonly Matrix<double>[] hiddenLayersOutputs;
+        private readonly Matrix<double> outputs;
+        private readonly Matrix<double> takenActions;
 
         private History(
-            List<Vector<double>> inputs,
-            List<Vector<double>>[] hiddenLayerOutputs,
-            List<Vector<double>> outputs,
-            List<int> takenActions)
+            Matrix<double> inputs,
+            Matrix<double>[] hiddenLayersOutputs,
+            Matrix<double> outputs,
+            Matrix<double> takenActions)
         {
             this.inputs = inputs;
-            this.hiddenLayerOutputs = hiddenLayerOutputs;
+            this.hiddenLayersOutputs = hiddenLayersOutputs;
             this.outputs = outputs;
             this.takenActions = takenActions;
         }
 
         public static History Load(string fileName)
         {
-            List<Vector<double>> inputs;
-            List<Vector<double>>[] hiddenLayerOutputs;
-            List<Vector<double>> outputs;
-            List<int> takenActions;
+            var inputs = new List<Vector<double>>();
+            var hiddenLayersOutputs = new List<Vector<double>[]>();
+            var outputs = new List<Vector<double>>();
+            var takenActions = new List<int>();
 
-            using (var stream = File.OpenRead(fileName))
+            try
             {
-                var formatter = new BinaryFormatter();
-                inputs = formatter.Deserialize(stream) as List<Vector<double>>;
-                hiddenLayerOutputs = formatter.Deserialize(stream) as List<Vector<double>>[];
-                outputs = formatter.Deserialize(stream) as List<Vector<double>>;
-                takenActions = formatter.Deserialize(stream) as List<int>;
+                using (var stream = File.OpenRead(fileName))
+                {
+                    var formatter = new BinaryFormatter();
+                    inputs.Add(formatter.Deserialize(stream) as Vector<double>);
+                    hiddenLayersOutputs.Add(formatter.Deserialize(stream) as Vector<double>[]);
+                    outputs.Add(formatter.Deserialize(stream) as Vector<double>);
+                    takenActions.Add((int)formatter.Deserialize(stream));
+                }
             }
-            return new History(inputs, hiddenLayerOutputs, outputs, takenActions);
-        }
-
-        public void ForgetEverything()
-        {
-            inputs.Clear();
-            for (int i = 0; i < hiddenLayerOutputs.Length; i++)
+            catch (Exception)
             {
-                hiddenLayerOutputs[i].Clear();
             }
-            outputs.Clear();
-            takenActions.Clear();
+
+            return new History(
+                Matrix<double>.Build.DenseOfColumnVectors(inputs),
+                ConvertHiddenLayersOutputs(hiddenLayersOutputs),
+                Matrix<double>.Build.DenseOfColumnVectors(outputs),
+                ConvertTakenActionsToOneHotMatrix(takenActions, outputs.First().Count));
         }
 
-        public void Add(
-            Vector<double> input,
-            Vector<double>[] hiddenLayerOutputs,
-            Vector<double> output,
-            int takenAction)
+        public Matrix<double> Outputs { get => outputs; }
+
+        public Matrix<double> Inputs { get => inputs; }
+
+        public Matrix<double> TakenActions { get => takenActions; }
+
+        public Matrix<double> GetHiddenLayersOutputs(int layer)
         {
-            inputs.Add(input);
-            for (int i = 0; i < this.hiddenLayerOutputs.Length; i++)
+            return hiddenLayersOutputs[layer];
+        }
+
+        private static Matrix<double>[] ConvertHiddenLayersOutputs(List<Vector<double>[]> entries)
+        {
+            if (!entries.Any())
             {
-                this.hiddenLayerOutputs[i].Add(hiddenLayerOutputs[i]);
+                throw new ArgumentException("list is empty", "storedOutputs");
             }
-            outputs.Add(output);
-            takenActions.Add(takenAction);
-        }
 
-        public void Store(string fileName)
-        {
-            using (var stream = File.Create(fileName))
+            var nrOfEntries = entries.Count;
+
+            var firstEntry = entries.First();
+
+            // Create matrices based on first entry
+            var nrOfHiddenLayers = firstEntry.Length;
+            var hiddenLayerOutputs = new Matrix<double>[nrOfHiddenLayers];
+            for (int l = 0; l < nrOfHiddenLayers; l++)
             {
-                var formatter = new BinaryFormatter();
-                formatter.Serialize(stream, inputs);
-                formatter.Serialize(stream, hiddenLayerOutputs);
-                formatter.Serialize(stream, outputs);
-                formatter.Serialize(stream, takenActions);
+                var nrOfUnitsInLayer = firstEntry[l].Count;
+                hiddenLayerOutputs[l] = Matrix<double>.Build.Dense(nrOfUnitsInLayer, nrOfEntries);
             }
+
+            // Store all entries in the right matrix
+            for (int c = 0; c < entries.Count; c++)
+            {
+                var entry = entries[c];
+                Debug.Assert(entry.Length == nrOfHiddenLayers);
+                for (int l = 0; l < nrOfHiddenLayers; l++)
+                {
+                    hiddenLayerOutputs[l].SetColumn(c, entry[l]);
+                }
+            }
+
+            return hiddenLayerOutputs;
         }
 
-        public Matrix<double> GetInputs()
+        private static Matrix<double> ConvertTakenActionsToOneHotMatrix(IList<int> takenActions, int length)
         {
-            return Matrix<double>.Build.DenseOfColumnVectors(inputs);
-        }
-
-        public Matrix<double> GetHiddenLayerOutputs(int layer)
-        {
-            return Matrix<double>.Build.DenseOfColumnVectors(hiddenLayerOutputs[layer]);
-        }
-
-        public Matrix<double> GetOutputs()
-        {
-            return Matrix<double>.Build.DenseOfColumnVectors(outputs);
-        }
-
-        public Matrix<double> GetTakenActionsAsOneHot()
-        {
-            var result = Matrix<double>.Build.Dense(outputs.First().Count, outputs.Count, 0.0);
-            for (int c = 0; c < outputs.Count; c++)
+            var result = Matrix<double>.Build.Dense(length, takenActions.Count, 0.0);
+            for (int c = 0; c < takenActions.Count; c++)
             {
                 var takenAction = takenActions[c];
                 result[takenAction, c] = 1.0;
             }
             return result;
-        }
-
-        private static List<Vector<double>>[] CreateEmptyHiddenLayerOutputs(int nrOfHiddenLayers)
-        {
-            var hiddenLayerOutputs = new List<Vector<double>>[nrOfHiddenLayers];
-            for (int i = 0; i < nrOfHiddenLayers; i++)
-            {
-                hiddenLayerOutputs[i] = new List<Vector<double>>();
-            }
-            return hiddenLayerOutputs;
         }
     }
 }

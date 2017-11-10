@@ -18,7 +18,7 @@ namespace Neurbot.Micro
         {
             this.historyFileName = historyFileName;
 
-            brain = Brain.Brain.LoadFromFile(brainFileName);
+            brain = Brain.Brain.LoadFromFile(brainFileName, historyFileName);
         }
 
         public override void Response(List<GameState> gameStates)
@@ -95,8 +95,6 @@ namespace Neurbot.Micro
                 int actionId = brain.GetRandomAction(gameState.ToNeuralNetInput());
 
                 actionId = random.Next(0, 15);
-
-                brain.SaveHistory(historyFileName);
 
                 var action = SelectUfoAction(actionId);
                 action.Id = me.Ufos.First().Id;

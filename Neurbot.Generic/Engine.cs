@@ -41,7 +41,7 @@ namespace Neurbot.Generic
                 {
                     Response(states);
                 }
-                Thread.Sleep(100);
+                Thread.Sleep(10);
             }
         }
 
