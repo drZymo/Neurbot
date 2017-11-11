@@ -1,6 +1,7 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
@@ -9,7 +10,8 @@ namespace Neurbot.Brain
 {
     public class Brain
     {
-        private static readonly Random random = new Random();
+        // Use a seed unique for this process, so two of the same instances started at the same time have a different seed.
+        private static readonly Random random = new Random(DateTime.Now.GetHashCode() % Process.GetCurrentProcess().Id);
 
         private readonly Matrix<double>[] weights;
 
