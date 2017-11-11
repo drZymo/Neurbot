@@ -79,10 +79,12 @@ namespace Neurbot.Brain
 
             var dw3 = dz3.Multiply(history.GetHiddenLayersOutputs(1).Transpose()); // TODO optimize by doing transpose in History
             var da2 = weights[2].Transpose().Multiply(dz3);
-            var dz2 = da2.ReLUGrad();
+            var dz2 = da2.SigmoidGrad();
+
             var dw2 = dz2.Multiply(history.GetHiddenLayersOutputs(0).Transpose()); // TODO optimize by doing transpose in History
             var da1 = weights[1].Transpose().Multiply(dz2);
-            var dz1 = da1.ReLUGrad();
+            var dz1 = da1.SigmoidGrad();
+
             var dw1 = dz1.Multiply(history.Inputs.Transpose()); // TODO optimize by doing transpose in History
             var da0 = weights[0].Transpose().Multiply(dz1);
 

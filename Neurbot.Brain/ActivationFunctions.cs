@@ -20,6 +20,12 @@ namespace Neurbot.Brain
             return 1.0 / (1.0 + Math.Exp(-z));
         }
 
+        public static Matrix<double> SigmoidGrad(this Matrix<double> z)
+        {
+            var s = Sigmoid(z);
+            return s.PointwiseMultiply(1 - s);
+        }
+
         public static Vector<double> ReLU(this Vector<double> z)
         {
             return z.PointwiseMaximum(0);
