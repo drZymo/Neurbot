@@ -70,11 +70,7 @@ namespace Neurbot.Micro
                 var me = Helpers.GetPlayerByName(gameState.Players, gameState.PlayerName);
 
                 var input = gameState.ToNeuralNetInput();
-                int actionId = isLearning
-                    ? brain.GetRandomAction(input)
-                    : brain.GetBestAction(input);
-
-                actionId = random.Next(0, 15);
+                int actionId = brain.GetAction(input, isLearning, out var probabilities);
 
                 var action = SelectUfoAction(actionId);
                 action.Id = me.Ufos.First().Id;

@@ -76,28 +76,26 @@ namespace Neurbot.Brain
             var takenActions = history.TakenActions;
 
             var discountedRewards = DiscountReward(reward, takenActions.ColumnCount, 0.99);
-            var dz3 = takenActions - history.Outputs;
-            dz3 = dz3.RowwiseMultiply(discountedRewards);
+            Console.WriteLine("probs {0}", history.Outputs);
+            var dzOutput = takenActions - history.Outputs;
+            dzOutput = dzOutput.RowwiseMultiply(discountedRewards);
 
-            var dw3 = dz3.Multiply(history.GetHiddenLayersOutputs(1).Transpose()); // TODO optimize by doing transpose in History
-            var da2 = weights[2].Transpose().Multiply(dz3);
-            var dz2 = da2.SigmoidGrad();
+            Backward(history, dzOutput, out var gradients);
 
-            var dw2 = dz2.Multiply(history.GetHiddenLayersOutputs(0).Transpose()); // TODO optimize by doing transpose in History
-            var da1 = weights[1].Transpose().Multiply(dz2);
-            var dz1 = da1.SigmoidGrad();
-
-            var dw1 = dz1.Multiply(history.Inputs.Transpose()); // TODO optimize by doing transpose in History
-            var da0 = weights[0].Transpose().Multiply(dz1);
-
-            return new Gradients(new[] { dw1, dw2, dw3 });
+            return gradients;
         }
-
+        
         public void Descent(double LearningRate, Gradients gradients)
         {
             for (int i = 0; i < weights.Length; i++)
             {
                 weights[i] = weights[i] + LearningRate * gradients[i];
+            }
+
+            Console.WriteLine("Descent result:");
+            foreach (var w in weights)
+            {
+                Console.WriteLine("{0}", w);
             }
         }
 
@@ -108,7 +106,7 @@ namespace Neurbot.Brain
             for (int i = 0; i < weights.Length - 1; i++)
             {
                 var z = weights[i].Multiply(aPrev);
-                var a = z.Sigmoid();
+                var a = z.ReLU();
                 hiddenLayerOutputs[i] = a;
                 aPrev = a;
             }
@@ -116,6 +114,24 @@ namespace Neurbot.Brain
             var zOut = weights[weights.Length - 1].Multiply(aPrev);
             var aOut = zOut.Softmax();
             return aOut;
+        }
+
+        private void Backward(History history, Matrix<double> dz3, out Gradients gradients)
+        {
+            var gradientsBuffer = new Matrix<double>[weights.Length];
+
+            var dz = dz3;
+            for (int l = weights.Length - 1; l > 0; l--)
+            {
+                gradientsBuffer[l] = dz.Multiply(history.GetHiddenLayersOutputs(l - 1).Transpose());
+                var da = weights[l].Transpose().Multiply(dz);
+                dz = da.ReLUGrad();
+            }
+
+            gradientsBuffer[0] = dz.Multiply(history.Inputs.Transpose());
+            var da0 = weights[0].Transpose().Multiply(dz);
+
+            gradients = new Gradients(gradientsBuffer);
         }
 
         private static int FindIndexOfMaxValue<T>(IEnumerable<T> aOut) where T : IComparable<T>

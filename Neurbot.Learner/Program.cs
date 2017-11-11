@@ -22,7 +22,7 @@ namespace Neurbot.Learner
         private static readonly Random random = new Random();
 
         private const int NrOfEpisodes = 5000;
-        private const int BatchSize = 50;
+        private const int BatchSize = 20;
         private const int NrOfConcurrentGames = 8;
 
         private const double RMSPropDecayRate = 0.99;
@@ -238,7 +238,7 @@ namespace Neurbot.Learner
 
         private static void CreateNewWeights(string brainFileName)
         {
-            int[] nrOfUnitsInLayers = new[] { 240, 480, 120, 16 };
+            int[] nrOfUnitsInLayers = new[] { 240, 480, 16 };
             var nrOfLayers = nrOfUnitsInLayers.Length;
 
             var weights = new Matrix<double>[nrOfLayers - 1];
