@@ -7,6 +7,8 @@ namespace Neurbot.Micro
     {
         static void Main(string[] args)
         {
+            MathNet.Numerics.Control.UseNativeMKL();
+
             string brainFileName = @"brain.dat";
             string historyFileName = string.Empty;
             for (int i = 0; i < args.Length; i++)
