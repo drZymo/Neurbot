@@ -20,17 +20,24 @@ namespace Neurbot.Learner
         private static readonly string BrainFileName = Path.Combine(EpisodeRootFolder, @"brain.dat");
 
         private static readonly Random random = new Random();
+
         private const int NrOfEpisodes = 5000;
         private const int BatchSize = 50;
         private const int NrOfConcurrentGames = 8;
 
         private const double RMSPropDecayRate = 0.99;
         private const double LearningRate = 1e-3;
+
+        private static CancellationTokenSource cancellation = new CancellationTokenSource();
+
         private static readonly ConcurrentQueue<int> pendingEpisodes = new ConcurrentQueue<int>();
+
 
         static void Main(string[] args)
         {
             MathNet.Numerics.Control.UseNativeMKL();
+
+            Console.CancelKeyPress += OnCancelKeyPress;
 
             var rmspropCache = Gradients.Empty;
             var gradientsSum = Gradients.Empty;
@@ -44,7 +51,7 @@ namespace Neurbot.Learner
             }
             var brain = Brain.Brain.LoadFromFile(BrainFileName);
 
-            for (int episode = 0; episode < NrOfEpisodes; episode += BatchSize)
+            for (int episode = 0; episode < NrOfEpisodes && !cancellation.IsCancellationRequested; episode += BatchSize)
             {
                 // Run a number of episodes at once
                 for (int i = 0; i < BatchSize; i++)
@@ -53,21 +60,36 @@ namespace Neurbot.Learner
                 }
                 RunAllPendingEpisodes(brain, allGradients);
 
-                // Update the current sum of gradients
-                while (allGradients.TryDequeue(out var gradients))
+                if (!cancellation.IsCancellationRequested)
                 {
-                    gradientsSum = gradientsSum.Add(gradients);
+                    // Update the current sum of gradients
+                    while (allGradients.TryDequeue(out var gradients))
+                    {
+                        gradientsSum = gradientsSum.Add(gradients);
+                    }
+
+                    // Descent
+                    Console.WriteLine("Descending");
+                    rmspropCache = rmspropCache.AddAndDecay(gradientsSum, RMSPropDecayRate);
+                    brain.Descent(LearningRate, gradientsSum.ApplyRMSProp(rmspropCache));
+                    gradientsSum = Gradients.Empty;
+
+                    // Store updated brain to file
+                    brain.SaveToFile(BrainFileName);
                 }
-
-                // Descent
-                Console.WriteLine("Descending");
-                rmspropCache = rmspropCache.AddAndDecay(gradientsSum, RMSPropDecayRate);
-                brain.Descent(LearningRate, gradientsSum.ApplyRMSProp(rmspropCache));
-                gradientsSum = Gradients.Empty;
-
-                // Store updated brain to file
-                brain.SaveToFile(BrainFileName);
             }
+
+            if (cancellation.IsCancellationRequested)
+            {
+                Console.WriteLine("Cancelled!");
+            }
+        }
+
+        private static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            cancellation.Cancel();
+            Console.WriteLine("Cancelling...");
+            e.Cancel = true;
         }
 
         private static void RunAllPendingEpisodes(Brain.Brain brain, ConcurrentQueue<Gradients> allGradients)
@@ -86,7 +108,8 @@ namespace Neurbot.Learner
             do
             {
                 // Add a new task if there is room
-                if ((runningTasks.Count < NrOfConcurrentGames) &&
+                if (!cancellation.IsCancellationRequested &&
+                    (runningTasks.Count < NrOfConcurrentGames) &&
                     pendingEpisodes.TryDequeue(out var episode))
                 {
                     runningTasks.Add(Task.Run(() => RunEpisode(brain, episode, allGradients)));
@@ -95,7 +118,7 @@ namespace Neurbot.Learner
                 // Wait for one task to finish
                 var completedTaskIndex = Task.WaitAny(runningTasks.ToArray());
                 runningTasks.RemoveAt(completedTaskIndex);
-            } while (runningTasks.Any() || pendingEpisodes.Any());
+            } while (runningTasks.Any());
         }
 
         private static void RunEpisode(Brain.Brain brain, int episode, ConcurrentQueue<Gradients> allGradients)
