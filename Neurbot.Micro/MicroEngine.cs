@@ -12,11 +12,13 @@ namespace Neurbot.Micro
         private static readonly Random random = new Random();
 
         private readonly string historyFileName;
+        private readonly bool isLearning;
         private readonly Brain.Brain brain;
 
         public MicroEngine(string brainFileName, string historyFileName)
         {
             this.historyFileName = historyFileName;
+            isLearning = !string.IsNullOrEmpty(historyFileName);
 
             brain = Brain.Brain.LoadFromFile(brainFileName, historyFileName);
         }
@@ -67,32 +69,10 @@ namespace Neurbot.Micro
 
                 var me = Helpers.GetPlayerByName(gameState.Players, gameState.PlayerName);
 
-                //time += 0.1;
-                //
-                //var ufos = mePlayer.Ufos;
-                //var targetUfo = GetUfosWithHitPoints(GetOtherUfos(gameState, playerName)).FirstOrDefault();
-                //
-                //if (targetUfo == default(Protocol.Ufo))
-                //    return;
-                //
-                //foreach (var ufo in ufos)
-                //{
-                //    WriteMessage(new GameResponse
-                //    {
-                //        Commands = new List<UfoAction>
-                //        {
-                //            new UfoAction
-                //            {
-                //                Id = ufo.Id,
-                //                Move = new Move { Direction = Sin(time * 2) * 70, Speed = Sin(time * 0.2) * 4 },
-                //                ShootAt = new ShootAt { X = targetUfo.Position.X, Y = targetUfo.Position.Y },
-                //            }
-                //        },
-                //    });
-                //}
-
-                // TODO: Doesn't work correctly, probs are really small
-                int actionId = brain.GetRandomAction(gameState.ToNeuralNetInput());
+                var input = gameState.ToNeuralNetInput();
+                int actionId = isLearning
+                    ? brain.GetRandomAction(input)
+                    : brain.GetBestAction(input);
 
                 actionId = random.Next(0, 15);
 
