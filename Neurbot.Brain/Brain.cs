@@ -10,6 +10,8 @@ namespace Neurbot.Brain
 {
     public class Brain
     {
+        private const bool useSigmoid = true;
+
         // Use a seed unique for this process, so two of the same instances started at the same time have a different seed.
         private static readonly Random random = new Random(DateTime.Now.GetHashCode() % Process.GetCurrentProcess().Id);
 
@@ -20,6 +22,8 @@ namespace Neurbot.Brain
         private Brain(IEnumerable<Matrix<double>> weights, string historyFile)
         {
             this.weights = weights.ToArray();
+
+            CheckForNaNsInWeights();
 
             historyWriter = !string.IsNullOrEmpty(historyFile)
                 ? new HistoryWriter(historyFile)
@@ -76,7 +80,6 @@ namespace Neurbot.Brain
             var takenActions = history.TakenActions;
 
             var discountedRewards = DiscountReward(reward, takenActions.ColumnCount, 0.99);
-            Console.WriteLine("probs {0}", history.Outputs);
             var dzOutput = takenActions - history.Outputs;
             dzOutput = dzOutput.RowwiseMultiply(discountedRewards);
 
@@ -84,7 +87,7 @@ namespace Neurbot.Brain
 
             return gradients;
         }
-        
+
         public void Descent(double LearningRate, Gradients gradients)
         {
             for (int i = 0; i < weights.Length; i++)
@@ -92,10 +95,14 @@ namespace Neurbot.Brain
                 weights[i] = weights[i] + LearningRate * gradients[i];
             }
 
-            Console.WriteLine("Descent result:");
-            foreach (var w in weights)
+            CheckForNaNsInWeights();
+        }
+
+        private void CheckForNaNsInWeights()
+        {
+            if (weights.Any(w => !w.ForAll(v => !double.IsNaN(v))))
             {
-                Console.WriteLine("{0}", w);
+                Console.WriteLine("NaNs in weights!");
             }
         }
 
@@ -106,7 +113,9 @@ namespace Neurbot.Brain
             for (int i = 0; i < weights.Length - 1; i++)
             {
                 var z = weights[i].Multiply(aPrev);
-                var a = z.ReLU();
+                var a = useSigmoid
+                    ? z.Sigmoid()
+                    : z.ReLU();
                 hiddenLayerOutputs[i] = a;
                 aPrev = a;
             }
@@ -125,7 +134,9 @@ namespace Neurbot.Brain
             {
                 gradientsBuffer[l] = dz.Multiply(history.GetHiddenLayersOutputs(l - 1).Transpose());
                 var da = weights[l].Transpose().Multiply(dz);
-                dz = da.ReLUGrad();
+                dz = useSigmoid
+                    ? da.SigmoidGrad()
+                    : da.ReLUGrad();
             }
 
             gradientsBuffer[0] = dz.Multiply(history.Inputs.Transpose());

@@ -46,6 +46,7 @@ namespace Neurbot.Brain
 
         public Gradients AddAndDecay(Gradients gradients, double decayRate)
         {
+            // TODO: Causes NAN!!!
             if (IsEmpty)
             {
                 return gradients;
@@ -63,6 +64,7 @@ namespace Neurbot.Brain
 
         public Gradients ApplyRMSProp(Gradients rmspropCache)
         {
+            // TODO: Causes NAN!!!
             if (IsEmpty)
             {
                 return this;

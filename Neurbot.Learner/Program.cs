@@ -21,12 +21,12 @@ namespace Neurbot.Learner
 
         private static readonly Random random = new Random();
 
-        private const int NrOfEpisodes = 5000;
-        private const int BatchSize = 20;
+        private const int NrOfEpisodes = 50000;
+        private const int BatchSize = 50;
         private const int NrOfConcurrentGames = 8;
 
         private const double RMSPropDecayRate = 0.99;
-        private const double LearningRate = 1e-3;
+        private const double LearningRate = 1e-4;
 
         private static CancellationTokenSource cancellation = new CancellationTokenSource();
 
@@ -39,11 +39,6 @@ namespace Neurbot.Learner
 
             Console.CancelKeyPress += OnCancelKeyPress;
 
-            var rmspropCache = Gradients.Empty;
-            var gradientsSum = Gradients.Empty;
-
-            var allGradients = new ConcurrentQueue<Gradients>();
-
             // Create a fresh brain if it doesn't exist yet
             if (!File.Exists(BrainFileName))
             {
@@ -51,6 +46,26 @@ namespace Neurbot.Learner
             }
             var brain = Brain.Brain.LoadFromFile(BrainFileName);
 
+            //var history = History.Load(@"D:\Swoc2017\Episodes\episode0\Bot1\history.dat");
+            //var gradientsWinner = brain.ComputeGradient(history, 1.0);
+            //
+            //Console.WriteLine("gradients = {0}", gradientsWinner[1]);
+            //
+            //var input = history.Inputs.Column(0);
+            //Console.WriteLine("input = {0}", input);
+            //int actionIdPre = brain.GetAction(input, false, out var probsPre);
+            //Console.WriteLine("probs pre = {0}", probsPre);
+            //Console.WriteLine("action prob pre = {0}", probsPre[actionIdPre]);
+            //
+            //brain.Descent(1e-2, gradientsWinner);
+            //int actionIdPost = brain.GetAction(input, false, out var probsPost);
+            //Console.WriteLine("probs post = {0}", probsPost);
+            //Console.WriteLine("action prob post = {0}", probsPost[actionIdPost]);
+
+
+            var rmspropCache = Gradients.Empty;
+
+            var allGradients = new ConcurrentQueue<Gradients>();
             for (int episode = 0; episode < NrOfEpisodes && !cancellation.IsCancellationRequested; episode += BatchSize)
             {
                 // Run a number of episodes at once
@@ -62,7 +77,8 @@ namespace Neurbot.Learner
 
                 if (!cancellation.IsCancellationRequested)
                 {
-                    // Update the current sum of gradients
+                    // Apply the sum of all gradients so far
+                    var gradientsSum = Gradients.Empty;
                     while (allGradients.TryDequeue(out var gradients))
                     {
                         gradientsSum = gradientsSum.Add(gradients);
@@ -70,9 +86,10 @@ namespace Neurbot.Learner
 
                     // Descent
                     Console.WriteLine("Descending");
-                    rmspropCache = rmspropCache.AddAndDecay(gradientsSum, RMSPropDecayRate);
-                    brain.Descent(LearningRate, gradientsSum.ApplyRMSProp(rmspropCache));
-                    gradientsSum = Gradients.Empty;
+                    // TODO: RMS prop causes NaNs
+                    //rmspropCache = rmspropCache.AddAndDecay(gradientsSum, RMSPropDecayRate);
+                    //brain.Descent(LearningRate, gradientsSum.ApplyRMSProp(rmspropCache));
+                    brain.Descent(LearningRate, gradientsSum);
 
                     // Store updated brain to file
                     brain.SaveToFile(BrainFileName);
@@ -125,7 +142,7 @@ namespace Neurbot.Learner
         {
             var sw = Stopwatch.StartNew();
 
-            string winnerName = string.Empty;
+            int winnerId = -1;
             try
             {
                 // Create an empty folder structure for this episode
@@ -139,24 +156,31 @@ namespace Neurbot.Learner
 
                 var output = RunGame(ticksFolder, botFolders[0], botFolders[1]);
 
-                var winner = output.players.SingleOrDefault(p => p.id == output.winner);
-                var loser = output.players.SingleOrDefault(p => p.id != output.winner);
-                winnerName = winner.name;
+                winnerId = output.winner;
+                if (winnerId >= 0 && winnerId <= 1)
+                {
+                    var winner = output.players.SingleOrDefault(p => p.id == winnerId);
+                    var loser = output.players.SingleOrDefault(p => p.id != winnerId);
 
-                // Update gradients
-                // winner gets +1 reward
-                var historyWinner = History.Load(botHistoryFileNames[winner.id]);
-                var gradientsWinner = brain.ComputeGradient(historyWinner, 1.0);
-                allGradients.Enqueue(gradientsWinner);
+                    // Update gradients
+                    // winner gets +1 reward
+                    var historyWinner = History.Load(botHistoryFileNames[winner.id]);
+                    var gradientsWinner = brain.ComputeGradient(historyWinner, 1.0);
+                    allGradients.Enqueue(gradientsWinner);
 
-                // loser gets -1 reward
-                var historyLoser = History.Load(botHistoryFileNames[loser.id]);
-                var gradientsLoser = brain.ComputeGradient(historyLoser, -1.0);
-                allGradients.Enqueue(gradientsLoser);
+                    // loser gets -1 reward
+                    var historyLoser = History.Load(botHistoryFileNames[loser.id]);
+                    var gradientsLoser = brain.ComputeGradient(historyLoser, -1.0);
+                    allGradients.Enqueue(gradientsLoser);
+                }
+                else
+                {
+                    Console.WriteLine("illegal winner id {0}", winnerId);
+                }
 
                 // Delete folder
-                // Randomly keep 1 in 20
-                if (random.NextDouble() >= 1.0 / 20)
+                // Randomly keep 1 in 50
+                if (random.NextDouble() >= 1.0 / 50)
                 {
                     Directory.Delete(episodeFolder, true);
                 }
@@ -168,7 +192,7 @@ namespace Neurbot.Learner
             }
 
             sw.Stop();
-            Console.WriteLine("episode {0} won by {1} in {2:f1} s", episode, winnerName, sw.Elapsed.TotalSeconds);
+            Console.WriteLine("episode {0} won by {1} in {2:f1} s", episode, winnerId, sw.Elapsed.TotalSeconds);
         }
 
         private static void PrepareEpisode(string episodeFolder, string ticksFolder, string[] botFolders, string[] botHistoryFileNames)
@@ -238,7 +262,7 @@ namespace Neurbot.Learner
 
         private static void CreateNewWeights(string brainFileName)
         {
-            int[] nrOfUnitsInLayers = new[] { 240, 480, 16 };
+            int[] nrOfUnitsInLayers = new[] { 240, 480, 480, 120, 16 };
             var nrOfLayers = nrOfUnitsInLayers.Length;
 
             var weights = new Matrix<double>[nrOfLayers - 1];
