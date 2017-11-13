@@ -34,19 +34,16 @@ namespace Neurbot.Brain
             var outputs = new List<Vector<double>>();
             var takenActions = new List<int>();
 
-            try
+            using (var stream = File.OpenRead(fileName))
             {
-                using (var stream = File.OpenRead(fileName))
+                var formatter = new BinaryFormatter();
+                while (stream.Position < stream.Length)
                 {
-                    var formatter = new BinaryFormatter();
                     inputs.Add(formatter.Deserialize(stream) as Vector<double>);
                     hiddenLayersOutputs.Add(formatter.Deserialize(stream) as Vector<double>[]);
                     outputs.Add(formatter.Deserialize(stream) as Vector<double>);
                     takenActions.Add((int)formatter.Deserialize(stream));
                 }
-            }
-            catch (Exception)
-            {
             }
 
             return new History(
