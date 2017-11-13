@@ -32,7 +32,6 @@ namespace Neurbot.Learner
 
         private static readonly ConcurrentQueue<int> pendingEpisodes = new ConcurrentQueue<int>();
 
-
         static void Main(string[] args)
         {
             MathNet.Numerics.Control.UseNativeMKL();
@@ -63,7 +62,7 @@ namespace Neurbot.Learner
             //Console.WriteLine("action prob post = {0}", probsPost[actionIdPost]);
 
 
-            var rmspropCache = Gradients.Empty;
+            //var rmspropCache = Gradients.Empty;
 
             var allGradients = new ConcurrentQueue<Gradients>();
             for (int episode = 0; episode < NrOfEpisodes && !cancellation.IsCancellationRequested; episode += BatchSize)
@@ -125,8 +124,8 @@ namespace Neurbot.Learner
             do
             {
                 // Add a new task if there is room
-                if (!cancellation.IsCancellationRequested &&
-                    (runningTasks.Count < NrOfConcurrentGames) &&
+                if ((runningTasks.Count < NrOfConcurrentGames) &&
+                    !cancellation.IsCancellationRequested &&
                     pendingEpisodes.TryDequeue(out var episode))
                 {
                     runningTasks.Add(Task.Run(() => RunEpisode(brain, episode, allGradients)));
@@ -135,7 +134,7 @@ namespace Neurbot.Learner
                 // Wait for one task to finish
                 var completedTaskIndex = Task.WaitAny(runningTasks.ToArray());
                 runningTasks.RemoveAt(completedTaskIndex);
-            } while (runningTasks.Any());
+            } while (runningTasks.Any() || (!cancellation.IsCancellationRequested && pendingEpisodes.Any()));
         }
 
         private static void RunEpisode(Brain.Brain brain, int episode, ConcurrentQueue<Gradients> allGradients)
